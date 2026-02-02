@@ -50,9 +50,11 @@ export default function DriverApp() {
   const [taskData, setTaskData] = useState({
     type: 'Line Cleaning',
     account_id: '',
+    account_name: '',
     notes: '',
     photo_url: ''
   });
+  const [useCustomAccount, setUseCustomAccount] = useState(false);
   const [uploading, setUploading] = useState(false);
   
   // Inspection form state
@@ -155,13 +157,24 @@ export default function DriverApp() {
 
   // Submit task
   const handleSubmitTask = async () => {
-    if (!taskData.account_id) { alert('Please select an account'); return; }
+    if (!taskData.account_id && !taskData.account_name) { 
+      alert('Please select an account or enter a name'); 
+      return; 
+    }
+    
+    // Get account name for display
+    let accountName = taskData.account_name;
+    if (taskData.account_id && !useCustomAccount) {
+      const account = accounts.find(a => a.id === taskData.account_id);
+      accountName = account?.name || '';
+    }
     
     try {
       const { data, error } = await supabase.from('driver_tasks').insert([{
         driver_id: session.user.id,
         type: taskData.type,
-        account_id: taskData.account_id,
+        account_id: useCustomAccount ? null : taskData.account_id,
+        account_name: accountName,
         notes: taskData.notes,
         photo_url: taskData.photo_url,
         completed_at: new Date().toISOString()
@@ -170,7 +183,8 @@ export default function DriverApp() {
       if (error) throw error;
       
       setTasks([data, ...tasks]);
-      setTaskData({ type: 'Line Cleaning', account_id: '', notes: '', photo_url: '' });
+      setTaskData({ type: 'Line Cleaning', account_id: '', account_name: '', notes: '', photo_url: '' });
+      setUseCustomAccount(false);
       setShowTaskForm(false);
       alert('Task logged successfully!');
     } catch (error) {
@@ -349,7 +363,7 @@ export default function DriverApp() {
                       <span style={styles.activityIcon}>📋</span>
                       <div style={styles.activityInfo}>
                         <span style={styles.activityTitle}>{t.type}</span>
-                        <span style={styles.activityMeta}>{accounts.find(a => a.id === t.account_id)?.name}</span>
+                        <span style={styles.activityMeta}>{t.account_name || accounts.find(a => a.id === t.account_id)?.name || 'Unknown'}</span>
                       </div>
                       <span style={styles.activityTime}>{new Date(t.completed_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                     </div>
@@ -382,7 +396,7 @@ export default function DriverApp() {
                       <span style={styles.taskType}>{t.type}</span>
                       <span style={styles.taskTime}>{new Date(t.completed_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                     </div>
-                    <p style={styles.taskAccount}>{accounts.find(a => a.id === t.account_id)?.name}</p>
+                    <p style={styles.taskAccount}>{t.account_name || accounts.find(a => a.id === t.account_id)?.name || 'Unknown'}</p>
                     {t.notes && <p style={styles.taskNotes}>{t.notes}</p>}
                     {t.photo_url && <img src={t.photo_url} alt="Task photo" style={styles.taskPhoto} />}
                   </div>
@@ -454,10 +468,35 @@ export default function DriverApp() {
             
             <div style={styles.formGroup}>
               <label style={styles.label}>Account *</label>
-              <select value={taskData.account_id} onChange={e => setTaskData({...taskData, account_id: e.target.value})} style={styles.select}>
-                <option value="">Select account...</option>
-                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+              <div style={styles.toggleRow}>
+                <button 
+                  style={{...styles.toggleBtn, ...(!useCustomAccount ? styles.toggleBtnActive : {})}} 
+                  onClick={() => setUseCustomAccount(false)}
+                >
+                  Select
+                </button>
+                <button 
+                  style={{...styles.toggleBtn, ...(useCustomAccount ? styles.toggleBtnActive : {})}} 
+                  onClick={() => setUseCustomAccount(true)}
+                >
+                  Type Name
+                </button>
+              </div>
+              
+              {!useCustomAccount ? (
+                <select value={taskData.account_id} onChange={e => setTaskData({...taskData, account_id: e.target.value})} style={styles.select}>
+                  <option value="">Select account...</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              ) : (
+                <input 
+                  type="text" 
+                  value={taskData.account_name} 
+                  onChange={e => setTaskData({...taskData, account_name: e.target.value})} 
+                  style={styles.input} 
+                  placeholder="Enter account/location name"
+                />
+              )}
             </div>
             
             <div style={styles.formGroup}>
@@ -653,4 +692,7 @@ const styles = {
   
   cancelButton:{flex:1,padding:'14px',backgroundColor:'transparent',border:'1px solid #2a2a2a',borderRadius:'8px',color:'#888',fontSize:'14px',cursor:'pointer'},
   submitButton:{flex:1,padding:'14px',backgroundColor:'#3b82f6',border:'none',borderRadius:'8px',color:'#fff',fontSize:'14px',fontWeight:'600',cursor:'pointer'},
+  toggleRow:{display:'flex',gap:'8px',marginBottom:'8px'},
+  toggleBtn:{flex:1,padding:'10px',backgroundColor:'#0f0f0f',border:'1px solid #2a2a2a',borderRadius:'6px',color:'#888',fontSize:'13px',cursor:'pointer'},
+  toggleBtnActive:{backgroundColor:'#3b82f6',borderColor:'#3b82f6',color:'#fff'},
 };
